@@ -5,7 +5,8 @@ build-backend = "hatchling.build"
 [project]
 name = "endstone-pvp-arena"
 version = "0.1.0"
-description = "Simple PvP duel arena plugin example"
+description = "A PvP arena plugin for Endstone"
+dependencies = []
 
 [project.entry-points."endstone"]
 pvp_arena = "endstone_pvp_arena:PvPArena"

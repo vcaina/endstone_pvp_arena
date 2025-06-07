@@ -11,12 +11,12 @@ from endstone.form import ActionForm
 from endstone.level import Location
 from endstone.plugin import Plugin
 from endstone.scoreboard import Criteria
-from endstone.item import ItemStack
+from endstone.inventory import ItemStack
 from endstone.boss import BarColor, BarStyle, BossBar
 
 
 class PvPArena(Plugin):
-    api_version = "0.5"
+    api_version = "0.8"
     name = "pvp_arena"
 
     commands = {
@@ -54,7 +54,8 @@ class PvPArena(Plugin):
         self._pending: dict[str, list[str]] = {}
         # Track duel state by player UUID so entries persist across deaths
         self._duels: dict[uuid.UUID, uuid.UUID] = {}
-        self._inventories: dict[uuid.UUID, list] = {}
+        # Store each player's inventory and offhand item while dueling
+        self._inventories: dict[uuid.UUID, dict[str, list | ItemStack | None]] = {}
         self._locations: dict[uuid.UUID, Location] = {}
         self._bars: dict[uuid.UUID, BossBar] = {}
 
@@ -204,27 +205,38 @@ class PvPArena(Plugin):
         w_score.value = int(w_new)
         l_score.value = int(l_new)
 
-    def _clone_inventory(self, player) -> list:
-        """Return a deep copy of the player's inventory contents."""
+    def _clone_inventory(self, player) -> dict:
+        """Return a deep copy of the player's inventory, including offhand."""
         cloned: list = []
         for item in player.inventory.contents:
             if item is not None:
-                new_stack = ItemStack(item.type, item.amount)
+                copy_stack = ItemStack(item.type, item.amount)
                 meta = item.item_meta
                 if meta:
-                    new_stack.set_item_meta(meta)
-                cloned.append(new_stack)
+                    copy_stack.set_item_meta(meta)
+                cloned.append(copy_stack)
             else:
                 cloned.append(None)
-        return cloned
+        offhand = player.inventory.item_in_off_hand
+        if offhand is not None:
+            copy_offhand = ItemStack(offhand.type, offhand.amount)
+            meta = offhand.item_meta
+            if meta:
+                copy_offhand.set_item_meta(meta)
+        else:
+            copy_offhand = None
+        return {"contents": cloned, "offhand": copy_offhand}
 
     def _restore_inventory(self, player) -> None:
         inv = self._inventories.get(player.unique_id)
         if inv is not None:
             player.inventory.clear()
-            for idx, item in enumerate(inv):
+            for idx, item in enumerate(inv.get("contents", [])):
                 if item is not None:
                     player.inventory.set_item(idx, item)
+            off = inv.get("offhand")
+            if off is not None:
+                player.inventory.item_in_off_hand = off
 
     def _update_bar(self, p1, p2) -> None:
         """Create or update the boss bar showing the duel state."""
