@@ -11,6 +11,7 @@ from endstone.form import ActionForm
 from endstone.level import Location
 from endstone.plugin import Plugin
 from endstone.scoreboard import Criteria
+from endstone.item import ItemStack
 from endstone.boss import BarColor, BarStyle, BossBar
 
 
@@ -203,12 +204,26 @@ class PvPArena(Plugin):
         w_score.value = int(w_new)
         l_score.value = int(l_new)
 
+    def _clone_inventory(self, player) -> list:
+        """Return a deep copy of the player's inventory contents."""
+        cloned: list = []
+        for item in player.inventory.contents:
+            if item is not None:
+                new_stack = ItemStack(item.type, item.amount)
+                meta = item.item_meta
+                if meta:
+                    new_stack.set_item_meta(meta)
+                cloned.append(new_stack)
+            else:
+                cloned.append(None)
+        return cloned
+
     def _restore_inventory(self, player) -> None:
         inv = self._inventories.get(player.unique_id)
         if inv is not None:
             player.inventory.clear()
             for idx, item in enumerate(inv):
-                if item:
+                if item is not None:
                     player.inventory.set_item(idx, item)
 
     def _update_bar(self, p1, p2) -> None:
@@ -245,7 +260,7 @@ class PvPArena(Plugin):
     def _start_duel(self, p1, p2) -> None:
         self.logger.debug(f"Starting duel between {p1.name} and {p2.name}")
         for p in (p1, p2):
-            self._inventories[p.unique_id] = list(p.inventory.contents)
+            self._inventories[p.unique_id] = self._clone_inventory(p)
             self._locations[p.unique_id] = p.location
         self._duels[p1.unique_id] = p2.unique_id
         self._duels[p2.unique_id] = p1.unique_id
